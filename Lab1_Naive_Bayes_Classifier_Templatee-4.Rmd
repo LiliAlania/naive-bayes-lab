@@ -162,10 +162,14 @@ test <-  read.csv(file = test_path, stringsAsFactors = FALSE)
 
 ```{r}
 # note the power functional features of R bring us! 
-tidy_text <- unnest_tokens(train, 'splitted', 'text', token="words") %>%
-             filter(!splitted %in% stop_words)
+data("stop_words")
+# note the power functional features of R bring us! 
+tidy_text <- train %>%
+  mutate(tweet = str_replace_all(tweet, "[^a-zA-Z\\s]", " ")) %>%
+  unnest_tokens(word, tweet, token = "words") %>%
+  filter(!word %in% stop_words$word)
 
-tidy_text %>% count(splitted,sort=TRUE)
+tidy_text %>% count(word,sort=TRUE)
 ```
 
 ## Data visualization
