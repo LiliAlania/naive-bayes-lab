@@ -163,13 +163,18 @@ test <-  read.csv(file = test_path, stringsAsFactors = FALSE)
 ```{r}
 # note the power functional features of R bring us! 
 data("stop_words")
-# note the power functional features of R bring us! 
-tidy_text <- train %>%
+tidy_train <- train %>%
   mutate(tweet = str_replace_all(tweet, "[^a-zA-Z\\s]", " ")) %>%
   unnest_tokens(word, tweet, token = "words") %>%
-  filter(!word %in% stop_words$word)
+  filter(!word %in% stop_words$word) %>%
+  mutate(id = row_number())
 
-tidy_text %>% count(word,sort=TRUE)
+bag_of_words <- tidy_train %>% 
+  count(word, sort=TRUE) %>%
+  pivot_wider(names_from = word, values_from = n, values_fill = 0)
+
+X <- bag_of_words %>% select(-id)
+y <- train$label
 ```
 
 ## Data visualization
@@ -182,6 +187,7 @@ positive examples as a histogram, word cloud etc. Be creative!
 ## Classifier implementation
 
 ```{r}
+{r}
 naiveBayes <- setRefClass("naiveBayes",
                           
        # here it would be wise to have some vars to store intermediate result
@@ -193,6 +199,24 @@ naiveBayes <- setRefClass("naiveBayes",
                     # (binary classification task)
                     fit = function(X, y)
                     {
+                      class_probs = table(y)/length(y)
+                      
+                      words_count <- X %>%
+                        mutate(class=y) %>%
+                        group_by(class) %>%
+                        summarise(across(everything(), sum))
+                      
+                      total_words <- rowSums(words_count[,-1])
+                      
+                      cond_probs <- words_count
+                      for (i in 2:ncol(words_count)) {
+                        cond_probs[[i]] <- (cond_probs[[i]] +1)/ (total_words + ncol(X))
+                        
+                      
+                      return(list(class_probs = class_probs,
+                        cond_probs = cond_probs,
+                        vocab = colnames(X)))
+                      }
                          # TODO
                     },
                     
