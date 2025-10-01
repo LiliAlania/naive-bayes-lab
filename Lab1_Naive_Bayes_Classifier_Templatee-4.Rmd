@@ -164,12 +164,11 @@ test <-  read.csv(file = test_path, stringsAsFactors = FALSE)
 
 ```{r}
 # note the power functional features of R bring us! 
-data("stop_words")
 tidy_train <- train %>%
   mutate(doc_id = row_number()) %>%
   mutate(tweet = str_replace_all(tweet, "[^a-zA-Z\\s]", " ")) %>%
   unnest_tokens(word, tweet, token = "words") %>%
-  filter(!word %in% stop_words$word) %>%
+  filter(!word %in% splitted_stop_words) %>%
   filter(!is.na(word))
 
 bag_of_words <- tidy_train %>% 
@@ -231,7 +230,7 @@ naiveBayes <- setRefClass("naiveBayes",
                     {message_clean <- str_replace_all(message, "[^a-zA-Z\\s]", " ")
                      message_words <- tibble(text = message_clean) %>%
                       unnest_tokens(word, text, token = "words") %>%
-                      filter(!word %in% stop_words$word) %>%
+                      filter(!word %in% splitted_stop_words) %>%
                       filter(!is.na(word)) %>%
                       pull(word)
                     log_probs <- numeric(length(class_probs))
