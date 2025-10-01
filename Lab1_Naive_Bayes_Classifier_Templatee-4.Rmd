@@ -98,6 +98,8 @@ parts to test the classifierʼs possibilities on the unseen data.
 # though you may install other ones if they are needed
 library(tidytext)
 library(readr)
+library(stringr)
+library(tidyr)
 library(dplyr)
 library(ggplot2)
 ```
@@ -146,8 +148,8 @@ list.files("data/0-authors")
 ```
 
 ```{r}
-test_path <- "data/0-authors/test.csv"
-train_path <- "data/0-authors/train.csv"
+test_path <- "test.csv"
+train_path <- "train.csv"
 
 stop_words <- read_file("stop_words.txt")
 # https://stackoverflow.com/questions/27195912/why-does-strsplit-return-a-list
@@ -164,17 +166,19 @@ test <-  read.csv(file = test_path, stringsAsFactors = FALSE)
 # note the power functional features of R bring us! 
 data("stop_words")
 tidy_train <- train %>%
+  mutate(doc_id = row_number()) %>%
   mutate(tweet = str_replace_all(tweet, "[^a-zA-Z\\s]", " ")) %>%
   unnest_tokens(word, tweet, token = "words") %>%
   filter(!word %in% stop_words$word) %>%
-  mutate(id = row_number())
+  filter(!is.na(word))
 
 bag_of_words <- tidy_train %>% 
-  count(word, sort=TRUE) %>%
+  count(doc_id, word) %>%
   pivot_wider(names_from = word, values_from = n, values_fill = 0)
 
-X <- bag_of_words %>% select(-id)
-y <- train$label
+valid_doc_ids <- bag_of_words$doc_id
+X <- bag_of_words %>% select(-doc_id)
+y <- train$label[valid_doc_ids] 
 ```
 
 ## Data visualization
@@ -187,7 +191,6 @@ positive examples as a histogram, word cloud etc. Be creative!
 ## Classifier implementation
 
 ```{r}
-{r}
 naiveBayes <- setRefClass("naiveBayes",
                           
        # here it would be wise to have some vars to store intermediate result
@@ -217,13 +220,39 @@ naiveBayes <- setRefClass("naiveBayes",
                         cond_probs = cond_probs,
                         vocab = colnames(X)))
                       }
+                      class_probs <<- class_probs
+                      cond_probs <<- cond_probs
+                      vocab <<- colnames(X)
                          # TODO
                     },
                     
                     # return prediction for a single message 
                     predict = function(message)
-                    {
-                         # TODO
+                    {message_clean <- str_replace_all(message, "[^a-zA-Z\\s]", " ")
+                     message_words <- tibble(text = message_clean) %>%
+                      unnest_tokens(word, text, token = "words") %>%
+                      filter(!word %in% stop_words$word) %>%
+                      filter(!is.na(word)) %>%
+                      pull(word)
+                    log_probs <- numeric(length(class_probs))
+                    names(log_probs) <- names(class_probs)
+                    
+                    for (cls in names(class_probs)) {
+                      log_prob <- log(class_probs[cls])
+                      cls_idx <- which(cond_probs$class == as.numeric(cls))
+                      for (word in message_words) {
+                        if (word %in% vocab) {
+                          word_col <- which(colnames(cond_probs) == word)
+                          if (length(word_col) > 0) {
+                            log_prob <- log_prob + log(cond_probs[cls_idx, word_col][[1]])
+                          }
+                        }
+                      }
+                      
+                      log_probs[cls] <- log_prob
+                    }
+                    return(as.numeric(names(which.max(log_probs))))
+      
                     },
                     
                     # score you test set so to get the understanding how well you model
@@ -238,7 +267,7 @@ naiveBayes <- setRefClass("naiveBayes",
 ))
 
 model = naiveBayes()
-model$fit()
+model$fit(X, y)
 ```
 
 ## Measure effectiveness of your classifier
