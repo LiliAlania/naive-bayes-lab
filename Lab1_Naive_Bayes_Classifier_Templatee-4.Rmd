@@ -378,14 +378,12 @@ print(results)
 -   Show failure cases.
 
 ## Conclusions
+    Overall, our Naive Bayes class, as expected, has three main functions. The first calculates the probability of each word appearing in each of the two classes. The second aggregates this data and computes the probability of a given message belonging to each class. The third evaluates overall performance based on the provided test .csv file, essentially analyzing how well the method predicts.
 
-Summarize your work by explaining in a few sentences the points listed
-below.
+The core mechanism for calculating the probability of each word is Bayes’ theorem, while for entire sentences we simply use the average probability across all words.
 
--   Describe the method implemented in general. Show what are
-    mathematical foundations you are basing your solution on.
--   List pros and cons of the method. This should include the
-    limitations of your method, all the assumption you make about the
-    nature of your data etc.
--   Explain why accuracy is not a good choice for the base metrics for
-    classification tasks. Why F1 score is always preferable?
+The main advantage of this approach is its speed when working with large datasets.
+
+Unfortunately, this method is quite sensitive: if one class has significantly fewer words than the other, the likelihood of the program assigning any message to that class drops sharply.
+
+In conclusion, Naive Bayes provides a simple yet efficient baseline model, but its effectiveness strongly depends on balanced and representative training data.
