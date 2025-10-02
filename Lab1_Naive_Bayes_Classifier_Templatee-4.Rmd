@@ -250,9 +250,6 @@ naiveBayes <- setRefClass("naiveBayes",
     
     log_probs[cls] <- log_prob
   }
-  if (!any_word_found) {
-    warning("No words from the message were in the vocabulary. Using class priors.")
-  }
   return(names(log_probs)[which.max(log_probs)])
 },
                     
@@ -261,37 +258,50 @@ naiveBayes <- setRefClass("naiveBayes",
                     # look at f1 score or precision and recall
                     # visualize them 
                     # try how well your model generalizes to real world data! 
-                    score = function(X_test, y_test)
-                    {
-                         # TODO
-                      preds <- sapply(X_test$tweet, function(m) .self$predict(m))
+                    score = function(X_test, y_test) {
+  # Отримуємо передбачення для всіх повідомлень
+  preds <- sapply(X_test$tweet, function(m) .self$predict(m))
   
-                      TP <- sum(preds == 1 & y_test == 1)
-                      TN <- sum(preds == 0 & y_test == 0)
-                      FP <- sum(preds == 1 & y_test == 0)
-                      FN <- sum(preds == 0 & y_test == 1)
-                      
-                      accuracy <- (TP + TN) / (TP + TN + FP + FN)
-                      precision <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
-                      recall <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
-                      f1 <- ifelse((precision + recall) == 0, 0, 2 * precision * recall / (precision + recall))
-                      
-                      list(
-                        accuracy = accuracy,
-                        precision = precision,
-                        recall = recall,
-                        f1 = f1,
-                        confusion_matrix = matrix(c(TP, FP, FN, TN), nrow = 2,
-                                                  dimnames = list("Predicted" = c("Positive", "Negative"),
-                                                                  "Actual" = c("Positive", "Negative")))
-                      )
-                    }
+  # Уніфікуємо назви класів у фактори з однаковим рівнем
+  classes <- sort(unique(c(y_test, preds)))
+  y_test_f <- factor(y_test, levels = classes)
+  preds_f <- factor(preds, levels = classes)
+  
+  # Побудова матриці плутанини
+  conf_mat <- table(Predicted = preds_f, Actual = y_test_f)
+  
+  # Обчислюємо accuracy
+  accuracy <- sum(diag(conf_mat)) / sum(conf_mat)
+  
+  # Для кожного класу обчислюємо precision, recall і F1
+  precision <- recall <- f1 <- numeric(length(classes))
+  names(precision) <- names(recall) <- names(f1) <- classes
+  
+  for (cls in classes) {
+    TP <- conf_mat[cls, cls]
+    FP <- sum(conf_mat[cls, ]) - TP
+    FN <- sum(conf_mat[, cls]) - TP
+    precision[cls] <- ifelse((TP + FP) == 0, 0, TP / (TP + FP))
+    recall[cls] <- ifelse((TP + FN) == 0, 0, TP / (TP + FN))
+    f1[cls] <- ifelse((precision[cls] + recall[cls]) == 0, 0, 
+                       2 * precision[cls] * recall[cls] / (precision[cls] + recall[cls]))
+  }
+  
+  list(
+    accuracy = accuracy,
+    precision = precision,
+    recall = recall,
+    f1 = f1,
+    confusion_matrix = conf_mat
+  )
+}
 ))
 
 model <- naiveBayes$new()
 model$fit(X, y)
-result <- model$predict("i hate black people ")
+results <- model$score(X, y)
 print(result)
+print(results)
 ```
 
 ## Measure effectiveness of your classifier
