@@ -177,7 +177,10 @@ bag_of_words <- tidy_train %>%
 
 valid_doc_ids <- bag_of_words$doc_id
 X <- bag_of_words %>% select(-doc_id)
-y <- train$label[valid_doc_ids] 
+y <- train %>%
+  mutate(doc_id = row_number()) %>%
+  filter(doc_id %in% valid_doc_ids) %>%
+  pull(label)
 ```
 
 ## Data visualization
@@ -194,65 +197,64 @@ naiveBayes <- setRefClass("naiveBayes",
                           
        # here it would be wise to have some vars to store intermediate result
        # frequency dict etc. Though pay attention to bag of words! 
-       fields = list(),
+       fields = list(
+        class_probs = "ANY",
+        cond_probs = "ANY", 
+        vocab = "character"
+        ),
        methods = list(
                     # prepare your training data as X - bag of words for each of your
                     # messages and corresponding label for the message encoded as 0 or 1 
                     # (binary classification task)
                     fit = function(X, y)
                     {
-                      class_probs = table(y)/length(y)
-                      
-                      words_count <- X %>%
-                        mutate(class=y) %>%
-                        group_by(class) %>%
-                        summarise(across(everything(), sum))
-                      
-                      total_words <- rowSums(words_count[,-1])
-                      
-                      cond_probs <- words_count
-                      for (i in 2:ncol(words_count)) {
-                        cond_probs[[i]] <- (cond_probs[[i]] +1)/ (total_words + ncol(X))
-                        
-                      
-                      return(list(class_probs = class_probs,
-                        cond_probs = cond_probs,
-                        vocab = colnames(X)))
-                      }
-                      class_probs <<- class_probs
-                      cond_probs <<- cond_probs
-                      vocab <<- colnames(X)
-                         # TODO
-                    },
-                    
-                    # return prediction for a single message 
+  class_probs <<- table(y)/length(y)
+  
+  words_count <- X %>%
+    mutate(label = y) %>%
+    group_by(label) %>%
+    summarise(across(where(is.numeric), sum))
+  
+  total_words <- rowSums(words_count[, -1])
+  
+  cond_probs <<- words_count
+  for (i in 2:ncol(words_count)) {
+    cond_probs[[i]] <<- (cond_probs[[i]] + 1) / (total_words + ncol(X))
+  }
+  
+  vocab <<- colnames(X)
+},
                     predict = function(message)
-                    {message_clean <- str_replace_all(message, "[^a-zA-Z\\s]", " ")
-                     message_words <- tibble(text = message_clean) %>%
-                      unnest_tokens(word, text, token = "words") %>%
-                      filter(!word %in% splitted_stop_words) %>%
-                      filter(!is.na(word)) %>%
-                      pull(word)
-                    log_probs <- numeric(length(class_probs))
-                    names(log_probs) <- names(class_probs)
-                    
-                    for (cls in names(class_probs)) {
-                      log_prob <- log(class_probs[cls])
-                      cls_idx <- which(cond_probs$class == as.numeric(cls))
-                      for (word in message_words) {
-                        if (word %in% vocab) {
-                          word_col <- which(colnames(cond_probs) == word)
-                          if (length(word_col) > 0) {
-                            log_prob <- log_prob + log(cond_probs[cls_idx, word_col][[1]])
-                          }
-                        }
-                      }
-                      
-                      log_probs[cls] <- log_prob
-                    }
-                    return(as.numeric(names(which.max(log_probs))))
-      
-                    },
+{
+  message_clean <- str_replace_all(message, "[^a-zA-Z\\s]", " ")
+  message_words <- tibble(text = message_clean) %>%
+    unnest_tokens(word, text, token = "words") %>%
+    filter(!word %in% splitted_stop_words) %>%
+    filter(!is.na(word)) %>%
+    pull(word)
+  log_probs <- numeric(length(class_probs))
+  names(log_probs) <- names(class_probs)
+  any_word_found <- FALSE
+  for (cls in names(class_probs)) {
+    log_prob <- log(as.numeric(class_probs[cls]))
+    cls_idx <- which(cond_probs$label == cls)
+    for (word in message_words) {
+      if (word %in% vocab) {
+        word_col <- which(colnames(cond_probs) == word)
+        if (length(word_col) > 0) {
+          log_prob <- log_prob + log(as.numeric(cond_probs[cls_idx, word_col]))
+          any_word_found <- TRUE
+        }
+      }
+    }
+    
+    log_probs[cls] <- log_prob
+  }
+  if (!any_word_found) {
+    warning("No words from the message were in the vocabulary. Using class priors.")
+  }
+  return(names(log_probs)[which.max(log_probs)])
+},
                     
                     # score you test set so to get the understanding how well you model
                     # works.
@@ -261,6 +263,7 @@ naiveBayes <- setRefClass("naiveBayes",
                     # try how well your model generalizes to real world data! 
                     score = function(X_test, y_test)
                     {
+                         # TODO
                       preds <- sapply(X_test$tweet, function(m) .self$predict(m))
   
                       TP <- sum(preds == 1 & y_test == 1)
@@ -285,8 +288,10 @@ naiveBayes <- setRefClass("naiveBayes",
                     }
 ))
 
-model = naiveBayes()
+model <- naiveBayes$new()
 model$fit(X, y)
+result <- model$predict("i hate black people ")
+print(result)
 ```
 
 ## Measure effectiveness of your classifier
