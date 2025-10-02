@@ -185,6 +185,34 @@ y <- train %>%
 
 ## Data visualization
 
+```{r}
+
+garbage_words <- c("s", "t", "amp", "m")
+
+tidy_train_clean <- tidy_train %>%
+  filter(!is.na(word)) %>%
+  filter(word != "user") %>%
+  filter(!(word) %in% garbage_words)
+
+top_words <- tidy_train_clean %>%
+  group_by(label, word) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  arrange(label, desc(count)) %>%
+  group_by(label) %>%
+  slice_max(order_by = count, n = 10)
+
+
+ggplot(top_words, aes(x = reorder_within(word, count, label), 
+                      y = count, fill = label)) +
+  geom_col(show.legend = TRUE) +
+  facet_wrap(~label, scales = "free_y") +
+  coord_flip() +
+  scale_x_reordered() + 
+  labs(title = "Топ-10 word for each categoty",
+       x = "Word",
+       y = "Quantity") +
+  theme_minimal()
+```
 Each time you work with some data, you need to understand it before you
 start processing it. R has very powerful tools to make nice plots and
 visualization. Show what are the most common words for negative and
