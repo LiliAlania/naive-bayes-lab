@@ -194,11 +194,6 @@ bag_of_words_test <- tidy_test %>%
 
 X_test <- bag_of_words_test %>% select(-doc_id)
 y_test <- test$label
-
-model_fixed <- SimpleNaiveBayes$new()
-model_fixed$fit(X_train, y_train)
-results <- model_fixed$score(test$tweet, y_test)
-print(results)
 ```
 
 ## Data visualization
